@@ -1,8 +1,10 @@
 import v1 from "../assets/video/v1.mp4";
+import v2 from "../assets/video/v2.mp4";
 
 // The literal `&` in "Tap&Play" is part of the path, not a query separator, so
 // it is written raw and never URL-encoded.
 export const config = {
+  // apiBaseUrl: "http://192.168.1.88/Test/Tap&Play",
   apiBaseUrl: "http://192.168.0.88/API",
 
   endpoints: {
@@ -24,13 +26,19 @@ export const config = {
     height: 1480,
   },
 
-  // Videos bundled into the build. The controller sends `local:<key>`, so the
-  // screens never fetch across the network for their primary content.
-  localMedia: {
-    v1,
-  },
-
-  defaultMedia: "local:v1",
+  // The video library, bundled into the build. The controller sends
+  // `local:<key>`, so the screens never fetch across the network for their
+  // primary content — and every screen holds every clip before it is asked for,
+  // which is what makes switching between them instant on all ten panels.
+  //
+  // THIS IS THE ONE PLACE TO RENAME A VIDEO. `key` is the identity that travels
+  // over the wire and must not change casually (a screen mid-playback resolves
+  // its media by it); `title` and `note` are shown to people and can say
+  // anything. Adding a third clip = one import plus one entry here.
+  bundledVideos: [
+    { key: "v1", title: "Video 1", note: "v1.mp4", src: v1 },
+    { key: "v2", title: "Video 2", note: "v2.mp4", src: v2 },
+  ],
 
   media: {
     // Download the file in full, then play it from memory. Set false to stream
@@ -67,6 +75,19 @@ export const config = {
   // which is `localhost` in development and unreachable from a phone.
   publicOrigin: "",
 };
+
+/** The library entry a `local:<key>` URL — or a bare key — refers to. */
+export function bundledVideo(keyOrUrl) {
+  const key = String(keyOrUrl || "")
+    .replace(/^local:/, "")
+    .split("?")[0];
+  return config.bundledVideos.find((v) => v.key === key) || null;
+}
+
+/** The wire URL for a library entry. */
+export function bundledUrl(key) {
+  return `local:${key}`;
+}
 
 export function endpoint(name, sysNo) {
   const path = config.endpoints[name];

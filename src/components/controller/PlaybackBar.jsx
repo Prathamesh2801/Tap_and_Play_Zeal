@@ -24,7 +24,7 @@ export function PlaybackBar({
   const confirming = shownStatus !== snapshot.playStatus
 
   return (
-    <section className="surface hairline rounded-2xl p-5">
+    <section className="surface hairline rounded-2xl p-5 sm:p-6">
       <header className="flex items-baseline justify-between gap-4">
         <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-ink-400">On screen</p>
         <p className="text-[11px] uppercase tracking-[0.16em] text-ink-500">
@@ -37,7 +37,7 @@ export function PlaybackBar({
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className={`mt-2 truncate text-[17px] font-medium tracking-[-0.01em] ${
+        className={`mt-2 truncate text-[17px] font-medium tracking-[-0.01em] sm:text-[19px] ${
           hasMedia ? 'text-ink-050' : 'text-ink-500'
         }`}
       >

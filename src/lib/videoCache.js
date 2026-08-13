@@ -99,3 +99,8 @@ export function preloadMedia(url, onProgress) {
 export function cachedBytes(url) {
   return memory.get(url)?.bytes ?? 0
 }
+
+/** True once the whole file is held in memory and playback cannot touch the network. */
+export function isCached(url) {
+  return memory.has(url)
+}

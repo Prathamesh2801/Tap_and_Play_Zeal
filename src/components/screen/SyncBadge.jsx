@@ -5,7 +5,7 @@
  * accuracy figure, and a drift near zero. Hidden by default — the panel is meant
  * to show nothing but video.
  */
-export function SyncBadge({ clock, drift, preload }) {
+export function SyncBadge({ clock, drift, preload, library = [] }) {
   const ms = (v) => `${v >= 0 ? '+' : ''}${Math.round(v)}ms`
 
   return (
@@ -22,6 +22,14 @@ export function SyncBadge({ clock, drift, preload }) {
         </span>
       </div>
       <div>preload {Math.round(preload * 100)}%</div>
+      {library.map((row) => (
+        <div key={row.key}>
+          {row.key}{' '}
+          <span className={row.failed ? 'text-danger' : row.ready ? 'text-live' : undefined}>
+            {row.failed ? 'failed' : row.ready ? 'cached' : `${Math.round(row.ratio * 100)}%`}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }

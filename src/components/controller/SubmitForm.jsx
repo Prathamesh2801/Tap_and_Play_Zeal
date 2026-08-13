@@ -27,7 +27,7 @@ export function SubmitForm({ onSubmit, pending, disabled }) {
   }
 
   return (
-    <form onSubmit={submit} className="surface hairline rounded-2xl p-5">
+    <form onSubmit={submit} className="surface hairline rounded-2xl p-5 sm:p-6">
       <div className="space-y-2.5">
         <Label hint={media ? media.label : null}>Media URL</Label>
         <Input

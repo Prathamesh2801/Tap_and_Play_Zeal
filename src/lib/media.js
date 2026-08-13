@@ -5,7 +5,7 @@
  * switches on `kind` and never learns about URL formats.
  */
 
-import { config } from './config.js'
+import { bundledVideo } from './config.js'
 
 const YT = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{6,})/i
 const YT_SHORTS = /youtube\.com\/shorts\//i
@@ -123,11 +123,18 @@ function stripSync(url) {
   return kept.length ? `${base}?${kept.join('&')}` : base
 }
 
-/** `local:<key>` resolves to a video bundled into the build (see config.localMedia). */
+/** `local:<key>` resolves to a video bundled into the build (see config.bundledVideos). */
 function resolveLocal(url) {
-  const key = url.slice('local:'.length).split('?')[0]
-  const src = config.localMedia[key]
-  return src ? { kind: 'video', label: 'Bundled', src, url, local: true } : null
+  const entry = bundledVideo(url)
+  if (!entry) return null
+  return { kind: 'video', label: 'Bundled video', src: entry.src, title: entry.title, url, local: true }
+}
+
+/** The library key a URL refers to, or '' if it is not a bundled video. */
+export function bundledKey(url) {
+  const raw = String(url || '').trim()
+  if (!raw.startsWith('local:')) return ''
+  return bundledVideo(raw)?.key || ''
 }
 
 /** @returns {{kind:string,label:string,src?:string,embedUrl?:string,url:string}} */
@@ -167,7 +174,10 @@ export function isPlayableUrl(value) {
  */
 export function displayTitle(url) {
   if (!url) return ''
-  if (String(url).startsWith('local:')) return String(url).slice('local:'.length).split('?')[0]
+  if (String(url).startsWith('local:')) {
+    const entry = bundledVideo(url)
+    return entry ? entry.title : String(url).slice('local:'.length).split('?')[0]
+  }
   try {
     const { pathname, hostname } = new URL(url)
     const last = pathname.split('/').filter(Boolean).pop()

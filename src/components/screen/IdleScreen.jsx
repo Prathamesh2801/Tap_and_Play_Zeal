@@ -13,8 +13,8 @@ const rise = {
 }
 
 /** The TV's resting state: the system number, a QR to its controller, a live badge. */
-export function IdleScreen({ sysNo, status, note, preload = 0 }) {
-  const cached = preload >= 1
+export function IdleScreen({ sysNo, status, note, library = [] }) {
+  const allReady = library.length > 0 && library.every((row) => row.ready)
   const link = controllerUrl(sysNo)
 
   return (
@@ -68,15 +68,32 @@ export function IdleScreen({ sysNo, status, note, preload = 0 }) {
         className="relative flex items-center justify-between"
       >
         <StatusDot status={status} />
-        {/* Whether this screen already holds the video is the thing you need to
-            know when commissioning a wall, so it is stated plainly. */}
-        <span
-          className={`text-[11px] font-medium uppercase tracking-[0.16em] ${
-            cached ? 'text-live' : 'text-ink-500'
-          }`}
-        >
-          {note || (cached ? 'Video ready' : `Caching ${Math.round(preload * 100)}%`)}
-        </span>
+        {/* Which clips this screen already holds is the thing you need to know
+            when commissioning a wall, so every one of them is stated plainly
+            rather than blended into a single percentage. */}
+        {note ? (
+          <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-ink-500">{note}</span>
+        ) : (
+          <div className="flex items-center gap-5">
+            {library.map((row) => (
+              <span
+                key={row.key}
+                className={`text-[11px] font-medium uppercase tracking-[0.16em] ${
+                  row.failed ? 'text-danger' : row.ready ? 'text-live' : 'text-ink-500'
+                }`}
+              >
+                {row.title}
+                {' · '}
+                {row.failed ? 'Failed' : row.ready ? 'Ready' : `${Math.round(row.ratio * 100)}%`}
+              </span>
+            ))}
+            {allReady && (
+              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-live">
+                All videos cached
+              </span>
+            )}
+          </div>
+        )}
       </motion.footer>
     </div>
   )

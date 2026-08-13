@@ -54,6 +54,12 @@ export const ScreenIcon = (p) => (
   </svg>
 )
 
+export const CheckIcon = (p) => (
+  <svg {...base} {...p}>
+    <path d="M5 12.5 9.5 17 19 7.5" />
+  </svg>
+)
+
 export const RemoteIcon = (p) => (
   <svg {...base} {...p}>
     <rect x="7" y="2.5" width="10" height="19" rx="3" />
