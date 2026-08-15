@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Camera/WhatsApp masters and intermediate encodes. Hundreds of MB, and nothing
+# in the build reads them — src/assets/video/*.mp4 is the committed output.
+media-source/raw
+media-source/encoded
+
 .env
 .env.*
 !.env.example

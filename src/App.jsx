@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react'
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
+import { DevMockBadge } from './components/DevMockBadge.jsx'
 import { Spinner } from './components/ui/Button.jsx'
 
 // Route-level code splitting: the TV device only downloads the screen bundle.
@@ -21,6 +22,8 @@ export default function App() {
         <Suspense fallback={<RouteFallback />}>
           <AnimatedRoutes />
         </Suspense>
+        {/* Renders nothing unless config.devMock.enabled. */}
+        <DevMockBadge />
       </ErrorBoundary>
     </HashRouter>
   )

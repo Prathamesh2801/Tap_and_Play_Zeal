@@ -1,4 +1,5 @@
 import { config, endpoint } from './config.js'
+import { mockStream, mockValidate } from './mockBackend.js'
 
 /**
  * A resilient EventSource wrapper for sse.php.
@@ -17,6 +18,9 @@ import { config, endpoint } from './config.js'
  *   - explicit status reporting, so the UI can show "reconnecting" honestly
  */
 export function createSystemStream(sysNo, { onSnapshot, onStatus } = {}) {
+  // Dev mode: same signature, same frames, no server. See mockBackend.js.
+  if (config.devMock.enabled) return mockStream(sysNo, { onSnapshot, onStatus })
+
   let source = null
   let retryTimer = null
   let attempt = 0
@@ -104,6 +108,8 @@ export function createSystemStream(sysNo, { onSnapshot, onStatus } = {}) {
  * @returns {Promise<{valid: boolean, message: string}>}
  */
 export function validateSystemNo(sysNo) {
+  if (config.devMock.enabled) return mockValidate(sysNo)
+
   return new Promise((resolve) => {
     let source
     let settled = false
