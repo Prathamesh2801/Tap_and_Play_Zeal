@@ -82,14 +82,32 @@ export const config = {
   // its media by it); `title` and `note` are shown to people and can say
   // anything. Adding a third clip = one import plus one entry here.
   bundledVideos: [
-    { key: "v1", title: "Video 1", note: "78s · 720×1080", src: v1 },
-    { key: "v2", title: "Video 2", note: "41s · 720×1080", src: v2 },
+    { key: "v1", title: "Video 1", note: "40s · 720×1082", src: v1 },
+    { key: "v2", title: "Video 2", note: "78s · 720×1080", src: v2 },
   ],
 
   media: {
     // Download the file in full, then play it from memory. Set false to stream
     // straight from the URL if a device ever refuses a blob: source.
     preferBlobPlayback: true,
+
+    // Play the clip's audio on the panel. Override per screen with `?audio=0`
+    // (mute this one) or `?audio=1` (unmute this one).
+    //
+    // Browsers refuse to autoplay UNMUTED without a user gesture, so a panel
+    // left to boot on its own would otherwise sit silent. Launch it with
+    //   --autoplay-policy=no-user-gesture-required   (Chrome kiosk does this)
+    // and it plays with sound unattended. Without that flag the screen falls
+    // back to muted playback rather than showing nothing, and picks the sound
+    // up on the first tap — a black wall is a worse failure than a quiet one.
+    audio: true,
+
+    // How the video sits in the panel when the clip's shape does not match the
+    // screen's. Both clips are 2:3 and every portrait panel is narrower than
+    // that, so `cover` has to eat 15–27% off the left and right edges.
+    // `contain` letterboxes instead: nothing is ever cropped.
+    // Per screen: `?fit=cover`.
+    fit: "contain",
   },
 
   // Same-origin URL used to read the server's clock. Empty = the page's own
@@ -102,6 +120,12 @@ export const config = {
     softDrift: 0.02, // seconds — below this, leave it alone
     hardSeek: 0.35, // seconds — beyond this, jump rather than slide
     maxRateAdjust: 0.05, // playbackRate stays within 0.95–1.05
+
+    // With sound on, that same ±5% is audible — `preservesPitch` keeps the
+    // pitch but the time-stretch artefacts warble on sustained notes. A tighter
+    // cap trades slower drift correction for audio that survives being listened
+    // to. Hard seeks (> sync.hardSeek) still snap instantly either way.
+    audioMaxRateAdjust: 0.02,
 
     // WebKit corrects less often and less aggressively; frequent playbackRate
     // writes there cost frames, which reads as stutter.

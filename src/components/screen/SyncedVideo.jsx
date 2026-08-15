@@ -30,11 +30,30 @@ export function SyncedVideo({
   pausedAt = 0,
   playStatus,
   fit = 'cover',
+  audio = false,
   onDiagnostics,
 }) {
   const ref = useRef(null)
   const diagnosticsRef = useRef(null)
   const hasPlayedRef = useRef(false)
+
+  /**
+   * Sound is a request, not a guarantee: browsers reject `play()` outright on an
+   * unmuted element that no user gesture has touched. `soundBlocked` records
+   * that refusal so the screen can drop to muted playback and carry on — a
+   * silent wall is a far better failure than a black one.
+   *
+   * Kiosk (`--autoplay-policy=no-user-gesture-required`) means this never trips.
+   */
+  const [soundBlocked, setSoundBlocked] = useState(false)
+  const wantSound = Boolean(audio) && !soundBlocked
+
+  // Read inside the correction tick, which must not re-arm when sound changes.
+  const wantSoundRef = useRef(wantSound)
+
+  useEffect(() => {
+    wantSoundRef.current = wantSound
+  }, [wantSound])
 
   useEffect(() => {
     diagnosticsRef.current = onDiagnostics
@@ -70,6 +89,41 @@ export function SyncedVideo({
   }, [src])
 
   const playing = playStatus !== PLAY_STATUS.PAUSE
+
+  /**
+   * Muting is driven imperatively rather than through the JSX attribute: React
+   * only writes `muted` on the initial mount (it is a property, not a reflected
+   * attribute), so a later flip from muted to audible would never reach the
+   * element.
+   *
+   * `preservesPitch` matters because drift correction moves `playbackRate`. Left
+   * off, every correction shifts the pitch of the soundtrack — ten panels each
+   * sliding a few percent in different directions turns a music bed into a
+   * chorus of slightly detuned copies.
+   */
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.muted = !wantSound
+    el.preservesPitch = true
+    if ('webkitPreservesPitch' in el) el.webkitPreservesPitch = true
+  }, [wantSound, playbackUrl])
+
+  // If sound was refused, take the first gesture anywhere on the panel as
+  // permission to try again. ScreenFrame's tap-to-fullscreen is one of these,
+  // so a single tap on a non-kiosk screen both fills it and turns the sound on.
+  useEffect(() => {
+    if (!audio || !soundBlocked) return undefined
+
+    const retry = () => setSoundBlocked(false)
+    const opts = { once: true, passive: true }
+    window.addEventListener('pointerdown', retry, opts)
+    window.addEventListener('keydown', retry, opts)
+    return () => {
+      window.removeEventListener('pointerdown', retry)
+      window.removeEventListener('keydown', retry)
+    }
+  }, [audio, soundBlocked])
 
   useEffect(() => {
     const el = ref.current
@@ -116,11 +170,17 @@ export function SyncedVideo({
       if (drift > total / 2) drift -= total
       else if (drift < -total / 2) drift += total
 
+      // Tighter when audible: a ±5% rate slide that is invisible in the picture
+      // is clearly audible in the soundtrack.
+      const rateCap = wantSoundRef.current
+        ? Math.min(maxRate, config.sync.audioMaxRateAdjust)
+        : maxRate
+
       if (Math.abs(drift) > hardSeek) {
         el.currentTime = position
         setRate(1)
       } else if (Math.abs(drift) > soft) {
-        setRate(1 + Math.max(-maxRate, Math.min(maxRate, -drift)))
+        setRate(1 + Math.max(-rateCap, Math.min(rateCap, -drift)))
       } else {
         setRate(1)
       }
@@ -131,7 +191,17 @@ export function SyncedVideo({
     const begin = () => {
       if (duration()) el.currentTime = target()
       hasPlayedRef.current = true
-      el.play().catch(() => {})
+
+      el.play().catch(() => {
+        // Almost always the autoplay policy refusing an unmuted element. Drop
+        // the sound and start anyway — the wall must not go black over audio.
+        if (!el.muted) {
+          setSoundBlocked(true)
+          el.muted = true
+          el.play().catch(() => {})
+        }
+      })
+
       interval = setInterval(correct, tick)
     }
 
@@ -192,6 +262,9 @@ export function SyncedVideo({
       src={playbackUrl || undefined}
       className={`h-full w-full bg-black ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
       playsInline
+      // Initial value only — the effect above owns this from then on. Starting
+      // muted keeps the very first play() attempt inside what every autoplay
+      // policy allows; sound is turned on once it is actually playing.
       muted
       loop
       preload="auto"

@@ -17,6 +17,11 @@ dist-ssr
 media-source/raw
 media-source/encoded
 
+# Build output zipped for hand-delivery to the Apache host. `npm run build`
+# regenerates it; committing it once put 21 MB in the history.
+dist.zip
+*.zip
+
 .env
 .env.*
 !.env.example

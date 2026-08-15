@@ -43,7 +43,14 @@ export default function ScreenRoute() {
   const { sysNo, snapshot, status, rejected } = useSystemChannel(bound, { enabled: ready })
   const [params] = useSearchParams()
 
-  const fit = params.get('fit') === 'contain' ? 'contain' : 'cover'
+  // Default comes from config (contain — both clips are 2:3 and every portrait
+  // panel is narrower, so `cover` would crop 15–27% off the left and right).
+  const fitParam = params.get('fit')
+  const fit = fitParam === 'cover' || fitParam === 'contain' ? fitParam : config.media.fit
+
+  const audioParam = params.get('audio')
+  const audio = audioParam === null ? config.media.audio : audioParam === '1'
+
   const aspect = parseAspect(params.get('aspect'))
   const preview = params.get('preview') === '1'
   const debug = params.get('debug') === '1'
@@ -149,6 +156,7 @@ export default function ScreenRoute() {
               url={snapshot.url}
               playStatus={snapshot.playStatus}
               fit={fit}
+              audio={audio}
               aspect={aspect}
               // Diagnostics tick twice a second; feeding them into React state
               // when nothing renders them re-rendered the whole tree at 2Hz,

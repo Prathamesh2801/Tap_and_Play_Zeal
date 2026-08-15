@@ -181,20 +181,59 @@ keyframe at exactly every second with no scene-cut variance. `currentTime` write
 can only land on a keyframe, so sparse or unevenly spaced ones mean ten panels snap
 to ten different frames after the same correction.
 
-Current library — both 720×1080 @ 24fps, re-encoded from ~180 MB WhatsApp masters:
+Current library — 24fps, AAC 128k stereo kept in both:
 
-| key | duration | size | bitrate |
-| --- | --- | --- | --- |
-| `v1` | 78.3s | 8.6 MB | ~0.9 Mbps |
-| `v2` | 41.3s | 12.3 MB | ~2.4 Mbps |
+| key | duration | resolution | size | bitrate |
+| --- | --- | --- | --- | --- |
+| `v1` | 40.4s | 720×1082 | 12.1 MB | ~2.4 Mbps |
+| `v2` | 78.3s | 720×1080 | 9.6 MB | ~1.0 Mbps |
 
 **Renaming or adding a clip is one place only**: `config.bundledVideos`. `key` is
 the identity that travels over the wire and must not change casually (a screen
 mid-playback resolves its media by it); `title` and `note` are shown to people.
 Adding a third clip = one import plus one entry.
 
-Files are muted on the panel, but audio is kept in the encode — unmuting is a
-one-line change in `SyncedVideo`, re-encoding to get sound back is not.
+Sources are **not** padded to the panel's shape. They keep their native 2:3 and
+the panel letterboxes them (see below) — baking bars into the file would spend
+bitrate on black and freeze the framing decision into the asset.
+
+## Aspect: why `contain` is the default
+
+Both clips are **2:3 (0.667)**. Every portrait panel is narrower than that, so
+`fit=cover` has to eat the left and right edges:
+
+| panel | video scaled to fill | lost L+R |
+| --- | --- | --- |
+| 1080×1920 (the real panels) | 1280×1920 | 200px — **15.6%** |
+| 720×1480 (`config.screen` canvas) | 986×1480 | 266px — **27%** |
+
+`config.media.fit` is therefore `contain`: full frame, black above and below.
+Per screen, `?fit=cover` overrides it. Note `config.screen` is only the idle
+design canvas — the video fills the real viewport, so the crop maths follows the
+hardware, not that number.
+
+## Audio
+
+`config.media.audio` (default on, `?audio=0` / `?audio=1` per screen). Three
+things this had to get right:
+
+- **Autoplay policy.** Browsers reject `play()` on an unmuted element no gesture
+  has touched. The element therefore mounts muted, and sound is switched on
+  imperatively — React writes `muted` on mount only, since it is a property and
+  not a reflected attribute, so a later flip would never reach the element. If
+  the start is still refused, the screen **drops to muted and plays anyway**: a
+  silent wall beats a black one. The first tap anywhere then retries the sound,
+  and `ScreenFrame`'s tap-to-fullscreen is one such gesture. Kiosk with
+  `--autoplay-policy=no-user-gesture-required` and none of this ever fires.
+- **`preservesPitch`.** Drift correction moves `playbackRate`. Without it every
+  correction shifts pitch, and ten panels sliding a few percent in different
+  directions turn a music bed into a chorus of detuned copies.
+- **`sync.audioMaxRateAdjust` (0.02).** ±5% is invisible in the picture and
+  obvious in the sound, so the rate cap tightens while audible. Hard seeks past
+  `sync.hardSeek` still snap instantly.
+
+Ten panels playing the same track a few tens of ms apart will comb-filter. That
+is physics, not a bug — if the room sounds wrong, run `?audio=0` on all but one.
 
 ## Layout traps already paid for
 
@@ -216,7 +255,8 @@ one-line change in `SyncedVideo`, re-encoding to get sound back is not.
 
 | Option | Effect |
 | --- | --- |
-| `fit=cover` \| `contain` | Crop to fill (default) or letterbox. |
+| `fit=contain` \| `cover` | Letterbox (default) or crop to fill. |
+| `audio=1` \| `0` | Sound on this panel. Default from `config.media.audio`. |
 | `debug=1` | Clock/drift/preload badge. Use this when commissioning a wall. |
 | `pair=1` | Show system number + pairing QR instead of black. |
 | `preview=1` | Desktop device mock. Design aid — never on the panel. |

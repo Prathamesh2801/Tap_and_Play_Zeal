@@ -11,10 +11,18 @@ import { SyncedVideo } from './SyncedVideo.jsx'
  * phone. Anything drawn on top of the video breaks the illusion the screen
  * exists to create.
  *
- * Playback is muted, which is what lets it autoplay unattended, and looped, so
- * a quiet stream (only heartbeats, no state change) just keeps playing.
+ * Playback loops, so a quiet stream (only heartbeats, no state change) just
+ * keeps playing. Whether it carries sound is `audio` — see SyncedVideo for what
+ * happens when the browser's autoplay policy refuses an unmuted start.
  */
-export function MediaStage({ url, playStatus, fit = 'cover', aspect = null, onDiagnostics }) {
+export function MediaStage({
+  url,
+  playStatus,
+  fit = 'cover',
+  audio = false,
+  aspect = null,
+  onDiagnostics,
+}) {
   const media = resolveMedia(url)
 
   if (media.kind === 'image') return <ImageStage media={media} fit={fit} />
@@ -35,6 +43,7 @@ export function MediaStage({ url, playStatus, fit = 'cover', aspect = null, onDi
       pausedAt={sync.pausedAt}
       playStatus={playStatus}
       fit={fit}
+      audio={audio}
       onDiagnostics={onDiagnostics}
     />
   )
