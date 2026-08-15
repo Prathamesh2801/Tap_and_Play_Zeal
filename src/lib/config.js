@@ -1,5 +1,9 @@
 import v1 from "../assets/video/v1.mp4";
-// import v2 from "../assets/video/v2.mp4";  ← uncomment with its entry below
+import v2 from "../assets/video/v2.mp4";
+import v3 from "../assets/video/v3.mp4";
+import v1audio from "../assets/audio/v1.m4a";
+import v2audio from "../assets/audio/v2.m4a";
+import v3audio from "../assets/audio/v3.m4a";
 
 // The literal `&` in "Tap&Play" is part of the path, not a query separator, so
 // it is written raw and never URL-encoded.
@@ -91,9 +95,17 @@ export const config = {
   //
   // v2 is currently at the second level, awaiting its final cut. To restore it:
   // uncomment the import at the top of this file and the entry below.
+  // `audioSrc` is the room's sound, played by the CONTROLLER, not the panels —
+  // see components/controller/SyncedAudio.jsx for why the wall stays silent.
+  //
+  // It must be encoded to the video's EXACT duration. Two loops of even
+  // slightly different length pull apart a little further on every pass, and no
+  // amount of drift correction survives a mismatch reintroduced every 40s.
+  // A clip with no `audioSrc` simply plays silent.
   bundledVideos: [
-    { key: "v1", title: "Video 1", note: "40s · 720×1082", src: v1 },
-    // { key: "v2", title: "Video 2", note: "78s · 720×1080", src: v2 },
+    { key: "v1", title: "Video 1", note: "40s · 576×864", src: v1, audioSrc: v1audio },
+    { key: "v2", title: "Video 2", note: "104s · 576×864", src: v2, audioSrc: v2audio },
+    { key: "v3", title: "Video 3", note: "78s · 576×864", src: v3, audioSrc: v3audio },
   ],
 
   media: {
@@ -101,16 +113,19 @@ export const config = {
     // straight from the URL if a device ever refuses a blob: source.
     preferBlobPlayback: true,
 
-    // Play the clip's audio on the panel. Override per screen with `?audio=0`
-    // (mute this one) or `?audio=1` (unmute this one).
+    // Sound on the panel. Currently OFF, and the shipped clip has no audio
+    // track at all — the wall is silent by design while playback smoothness is
+    // being chased. Turning this back on also needs a clip encoded WITH audio
+    // (drop the `-an` in scripts/encode-media.sh); flipping the flag alone gets
+    // you nothing but the muting logic.
     //
-    // Browsers refuse to autoplay UNMUTED without a user gesture, so a panel
-    // left to boot on its own would otherwise sit silent. Launch it with
+    // When it is on: browsers refuse to autoplay UNMUTED without a user
+    // gesture, so launch with
     //   --autoplay-policy=no-user-gesture-required   (Chrome kiosk does this)
-    // and it plays with sound unattended. Without that flag the screen falls
-    // back to muted playback rather than showing nothing, and picks the sound
-    // up on the first tap — a black wall is a worse failure than a quiet one.
-    audio: true,
+    // or the screen falls back to muted playback and picks the sound up on the
+    // first tap — a black wall is a worse failure than a quiet one.
+    // Per screen: `?audio=1` / `?audio=0`.
+    audio: false,
 
     // How the video sits in the panel when the clip's shape does not match the
     // screen's. Both clips are 2:3 and every portrait panel is narrower than

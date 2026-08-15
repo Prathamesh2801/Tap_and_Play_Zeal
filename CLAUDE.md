@@ -181,12 +181,49 @@ keyframe at exactly every second with no scene-cut variance. `currentTime` write
 can only land on a keyframe, so sparse or unevenly spaced ones mean ten panels snap
 to ten different frames after the same correction.
 
-Current library — 24fps, AAC 128k stereo:
+Current library — all 576×864, 24fps, Constrained Baseline, **video silent**:
 
-| key | duration | resolution | size | bitrate | state |
-| --- | --- | --- | --- | --- | --- |
-| `v1` | 40.4s | 720×1082 | 12.1 MB | ~2.4 Mbps | live |
-| `v2` | 78.3s | 720×1080 | 9.6 MB | ~1.0 Mbps | **withdrawn from the build** |
+| key | duration | video | audio | audio delta |
+| --- | --- | --- | --- | --- |
+| `v1` | 40.333s | 14.6 MB | 1.0 MB | −0.3 ms/loop |
+| `v2` | 103.958s | 14.9 MB | 2.5 MB | −0.3 ms/loop |
+| `v3` | 78.333s | 9.7 MB | 1.9 MB | −0.3 ms/loop |
+
+44 MB of media in the build. Each screen pulls the ~39 MB of video once, on
+bind; the controller pulls the ~5 MB of audio.
+
+`scripts/encode-media.sh <master> <key> [width]` produces **both** files and
+trims the audio to the encoded video's measured duration, then prints the
+per-loop delta and warns above 5 ms. Do not hand-roll either file — the length
+match is the whole ballgame (see Audio).
+
+All three masters are true 576-capable 720×1080; 576 is a deliberate downscale
+for decode headroom, not a native limit. If the panels turn out to have room,
+re-run with width `720` for more detail — the script refuses to go above the
+master either way.
+
+### Decode cost is the budget, not file size
+
+The clip is a blob in memory before a frame of it plays, so its **size does not
+affect playback at all**. What a weak panel spends is *pixels per frame* and
+*coding complexity*. Compressing harder is the wrong lever; these are the right
+ones, and `scripts/encode-media.sh` applies all of them:
+
+- **Never encode wider than the master.** This was shipped wrong once: a
+  566-wide master was pushed to 720 wide, costing **62% more pixels per frame for
+  zero extra detail** — the detail was never in the source. The script now
+  defaults to the master's own width, rounds down to a multiple of 16 (whole
+  macroblocks; odd sizes make some hardware decoders fall back to software), and
+  refuses outright to upscale.
+- `-tune fastdecode -bf 0 -refs 1` — CAVLC instead of CABAC, no B-frames and so
+  no reorder buffer, one reference frame. ~15% more bytes, materially cheaper
+  decode. The resulting stream is Constrained Baseline, the most universally
+  hardware-decoded H.264 there is.
+- `-an` — no audio stream at all. See the Audio section: the flag and the encode
+  have to agree, neither alone does anything.
+
+`media-source/encoded/v1-minimal.mp4` is a 432×648 fallback (64% fewer pixels
+than the original mistake) for panels that still cannot keep up.
 
 ### Two levels of withdrawing a clip
 
@@ -253,10 +290,43 @@ Per screen, `?fit=cover` overrides it. Note `config.screen` is only the idle
 design canvas — the video fills the real viewport, so the crop maths follows the
 hardware, not that number.
 
-## Audio
+## Audio: the wall is silent, the controller makes the sound
 
-`config.media.audio` (default on, `?audio=0` / `?audio=1` per screen). Three
-things this had to get right:
+Ten panels playing one track a few tens of milliseconds apart comb-filter into
+something worse than silence. So the sound does not come from the wall at all:
+the laptop driving the screens is also the machine wired to the speakers, and it
+plays a **separate audio-only file** of the same clip.
+
+- `config.bundledVideos[].audioSrc` — the track for a clip. No `audioSrc` means
+  that clip plays silent everywhere. `AudioOutput` follows whatever the server
+  says is on the wall, so picking a clip on the controller switches the sound
+  with it. `ControllerRoute` pre-caches every track on bind, or the wall would
+  start on time and the speakers a beat later.
+- `components/controller/SyncedAudio.jsx` drives it, and
+  `components/controller/AudioOutput.jsx` is its panel on the controller.
+- It is **not following the video.** Both follow the shared clock from the same
+  `?t=` anchor, independently — exactly how the ten panels stay with each other.
+  There is no message passing between them and nothing to fall behind.
+
+> **The audio file must be trimmed to the video's exact duration.** The master's
+> audio ran 40.3627s against a video of 40.3333s — 29ms longer. Looping
+> independently, that separates by 29ms *per pass*, half a second in twenty
+> minutes, and no amount of drift correction survives an error reintroduced every
+> loop. Trimmed to 40.333s the residual is 0.3ms per loop: measured, it stays
+> under the 20ms correction threshold for **40 minutes** and is still only ~30ms
+> (rate-nudged, inaudible) at an hour.
+
+`lib/mediaSync.js` holds the positioning and drift policy for both surfaces. It
+was extracted from `SyncedVideo` rather than copied — two copies of this would
+become two policies, and the symptom would be lip-sync quietly rotting on a wall
+nobody is standing next to. The extraction was verified equivalent to the
+original inline version over 200k random cases.
+
+### Panel-side audio
+
+`config.media.audio` is **off**, and the shipped video has no audio track at all.
+Putting sound back on the panels takes *both* `config.media.audio = true` and a
+clip encoded without `-an` — either alone does nothing. If you do:
 
 - **Autoplay policy.** Browsers reject `play()` on an unmuted element no gesture
   has touched. The element therefore mounts muted, and sound is switched on
@@ -312,6 +382,7 @@ them in unconditionally re-rendered the whole tree twice a second.
 src/lib/
   config.js       every env-dependent value + the video library + devMock
   mockBackend.js  in-browser stand-in for sse.php/data.php (dev only)
+  mediaSync.js    clock→position maths + drift policy, shared by video & audio
   contract.js     wire format + adapters — the seam to the backend
   apiClient.js    data.php writes, timeouts, typed errors
   sseClient.js    EventSource with backoff + jitter; SYS_NO validation

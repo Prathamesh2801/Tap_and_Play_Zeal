@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { SubmitForm } from '../components/controller/SubmitForm.jsx'
 import { PlaybackBar } from '../components/controller/PlaybackBar.jsx'
 import { VideoLibrary } from '../components/controller/VideoLibrary.jsx'
+import { AudioOutput } from '../components/controller/AudioOutput.jsx'
 import { SystemSetup } from '../components/SystemSetup.jsx'
 import { StatusDot } from '../components/ui/StatusDot.jsx'
 import { ScreenIcon } from '../components/ui/Icons.jsx'
@@ -12,6 +13,7 @@ import { useSystemActions } from '../hooks/useSystemActions.js'
 import { useSysNo } from '../hooks/useSysNo.js'
 import { bundledKey, withSync } from '../lib/media.js'
 import { now, startClockSync } from '../lib/clock.js'
+import { preloadMedia } from '../lib/videoCache.js'
 import { activeVideos, bundledUrl, config } from '../lib/config.js'
 
 /** The phone. Writes to data.php, mirrors what sse.php reports back. */
@@ -25,6 +27,31 @@ export default function ControllerRoute() {
   // needs to be right to a few tens of ms against a 2.5s lead, so it settles for
   // a single boundary and a wider spacing rather than a burst of requests.
   useEffect(() => startClockSync({ attempts: 50, spacing: 40, crossings: 1 }), [])
+
+  // Pull every room-audio track into memory up front, the same way each screen
+  // pre-caches every clip. Fetching a track only when it is first selected means
+  // the wall starts on time and the speakers come in late — the anchor maths
+  // would place the audio correctly the moment it arrived, but the opening
+  // second would be silent. One at a time, for the same reason the screens do it
+  // sequentially: this laptop is also serving ten panels their video.
+  useEffect(() => {
+    if (!ready) return undefined
+    let cancelled = false
+
+    ;(async () => {
+      for (const video of activeVideos()) {
+        if (cancelled) return
+        if (!video.audioSrc) continue
+        // A failure here is not worth surfacing: SyncedAudio re-requests the
+        // track on selection and falls back to streaming it.
+        await preloadMedia(video.audioSrc).catch(() => {})
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [ready])
 
   if (!ready) {
     return (
@@ -135,6 +162,13 @@ export default function ControllerRoute() {
             pending={actions.pending}
             disabled={!isLive}
           />
+        </div>
+
+        {/* Directly under the transport, because it is the same idea — what is
+            happening right now — even though it is the one panel that writes
+            nothing to the server. */}
+        <div className="lg:col-start-2 lg:row-start-2">
+          <AudioOutput snapshot={snapshot} />
         </div>
 
         <div className="lg:col-start-1 lg:row-start-2">

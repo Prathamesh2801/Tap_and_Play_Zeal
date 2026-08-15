@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { config } from '../../lib/config.js'
 import { now } from '../../lib/clock.js'
 import { preloadMedia } from '../../lib/videoCache.js'
-import { isWebKitMedia } from '../../lib/platform.js'
+import { correctTo, positionAt, rateCapFor, tuningFor } from '../../lib/mediaSync.js'
 import { PLAY_STATUS } from '../../lib/contract.js'
 
 /**
@@ -105,8 +105,12 @@ export function SyncedVideo({
     const el = ref.current
     if (!el) return
     el.muted = !wantSound
-    el.preservesPitch = true
-    if ('webkitPreservesPitch' in el) el.webkitPreservesPitch = true
+
+    // Only worth paying for when something is actually audible: keeping pitch
+    // constant across a playbackRate change means a real-time time-stretch on
+    // the audio, and that is CPU a starved panel does not have to spare.
+    el.preservesPitch = wantSound
+    if ('webkitPreservesPitch' in el) el.webkitPreservesPitch = wantSound
   }, [wantSound, playbackUrl])
 
   // If sound was refused, take the first gesture anywhere on the panel as
@@ -129,11 +133,7 @@ export function SyncedVideo({
     const el = ref.current
     if (!el || !playbackUrl) return undefined
 
-    const { softDrift, hardSeek, maxRateAdjust, correctionMs } = config.sync
-    const tuning = isWebKitMedia ? config.sync.webkit : null
-    const soft = tuning?.softDrift ?? softDrift
-    const maxRate = tuning?.maxRateAdjust ?? maxRateAdjust
-    const tick = tuning?.correctionMs ?? correctionMs
+    const { tick, soft, hardSeek, maxRate } = tuningFor()
 
     let startTimer = null
     let interval = null
@@ -141,14 +141,8 @@ export function SyncedVideo({
 
     const duration = () => (Number.isFinite(el.duration) && el.duration > 0 ? el.duration : 0)
 
-    const positionAt = (instant) => {
-      const total = duration()
-      if (!total) return 0
-      const elapsed = (instant - anchor) / 1000
-      return elapsed <= 0 ? 0 : elapsed % total
-    }
-
-    const target = () => positionAt(now())
+    const at = (instant) => positionAt(instant, anchor, duration())
+    const target = () => at(now())
 
     // Writing playbackRate is not free — on WebKit it can cost a frame — so it
     // is only touched when the value actually needs to move.
@@ -191,26 +185,13 @@ export function SyncedVideo({
         if (delta > budget) return
       }
 
-      const position = target()
-      let drift = el.currentTime - position
-      // Near the loop seam the shorter way round may be across the boundary.
-      if (drift > total / 2) drift -= total
-      else if (drift < -total / 2) drift += total
-
-      // Tighter when audible: a ±5% rate slide that is invisible in the picture
-      // is clearly audible in the soundtrack.
-      const rateCap = wantSoundRef.current
-        ? Math.min(maxRate, config.sync.audioMaxRateAdjust)
-        : maxRate
-
-      if (Math.abs(drift) > hardSeek) {
-        el.currentTime = position
-        setRate(1)
-      } else if (Math.abs(drift) > soft) {
-        setRate(1 + Math.max(-rateCap, Math.min(rateCap, -drift)))
-      } else {
-        setRate(1)
-      }
+      // Tighter while audible: a ±5% rate slide that is invisible in the
+      // picture is clearly audible in a soundtrack.
+      const drift = correctTo(el, target(), total, {
+        soft,
+        hardSeek,
+        maxRate: rateCapFor(maxRate, wantSoundRef.current),
+      })
 
       diagnosticsRef.current?.({ drift })
     }
@@ -243,7 +224,7 @@ export function SyncedVideo({
         // enough; only a screen that booted while paused needs positioning.
         if (pausedAt && duration() && !hasPlayedRef.current) {
           try {
-            el.currentTime = positionAt(pausedAt)
+            el.currentTime = at(pausedAt)
           } catch {
             /* metadata not ready yet */
           }
