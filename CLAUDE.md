@@ -183,14 +183,18 @@ to ten different frames after the same correction.
 
 Current library — all 576×864, 24fps, Constrained Baseline, **video silent**:
 
-| key | duration | video | audio | audio delta |
-| --- | --- | --- | --- | --- |
-| `v1` | 40.333s | 14.6 MB | 1.0 MB | −0.3 ms/loop |
-| `v2` | 103.958s | 14.9 MB | 2.5 MB | −0.3 ms/loop |
-| `v3` | 78.333s | 9.7 MB | 1.9 MB | −0.3 ms/loop |
+| key | master | duration | video | audio | audio delta |
+| --- | --- | --- | --- | --- | --- |
+| `v1` | `m1_raw.mp4` | 51.875s | 16.8 MB | 1.3 MB | 0.0 ms/loop |
+| `v2` | `m2_raw.mp4` | 103.958s | 14.9 MB | 2.5 MB | −0.3 ms/loop |
+| `v3` | `m3_raw.mp4` | 78.333s | 9.7 MB | 1.9 MB | −0.3 ms/loop |
 
-44 MB of media in the build. Each screen pulls the ~39 MB of video once, on
-bind; the controller pulls the ~5 MB of audio.
+47 MB of media in the build. Each screen pulls the ~41 MB of video once, on
+bind; the controller pulls the ~6 MB of audio.
+
+**The wire keys are `v1`/`v2`/`v3` regardless of what the masters are called.**
+Masters get renamed between rounds (`v*_raw` → `m*_raw`); the keys deliberately
+do not, because a screen mid-playback resolves its media by key.
 
 `scripts/encode-media.sh <master> <key> [width]` produces **both** files and
 trims the audio to the encoded video's measured duration, then prints the

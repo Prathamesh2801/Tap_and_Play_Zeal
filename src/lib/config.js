@@ -103,7 +103,7 @@ export const config = {
   // amount of drift correction survives a mismatch reintroduced every 40s.
   // A clip with no `audioSrc` simply plays silent.
   bundledVideos: [
-    { key: "v1", title: "Video 1", note: "40s · 576×864", src: v1, audioSrc: v1audio },
+    { key: "v1", title: "Video 1", note: "52s · 576×864", src: v1, audioSrc: v1audio },
     { key: "v2", title: "Video 2", note: "104s · 576×864", src: v2, audioSrc: v2audio },
     { key: "v3", title: "Video 3", note: "78s · 576×864", src: v3, audioSrc: v3audio },
   ],
