@@ -1,5 +1,5 @@
 import v1 from "../assets/video/v1.mp4";
-import v2 from "../assets/video/v2.mp4";
+// import v2 from "../assets/video/v2.mp4";  ← uncomment with its entry below
 
 // The literal `&` in "Tap&Play" is part of the path, not a query separator, so
 // it is written raw and never URL-encoded.
@@ -81,9 +81,19 @@ export const config = {
   // over the wire and must not change casually (a screen mid-playback resolves
   // its media by it); `title` and `note` are shown to people and can say
   // anything. Adding a third clip = one import plus one entry here.
+  // A clip is only in the build if it is IMPORTED — Vite emits an asset for the
+  // import, not for this list. So taking one out of circulation has two levels:
+  //
+  //   enabled: false      out of the UI, still shipped, still resolvable.
+  //                       Use when a clip may need to come back mid-event.
+  //   import commented    out of the build entirely. The bytes are gone from
+  //                       the deploy, and `local:v2` no longer resolves.
+  //
+  // v2 is currently at the second level, awaiting its final cut. To restore it:
+  // uncomment the import at the top of this file and the entry below.
   bundledVideos: [
     { key: "v1", title: "Video 1", note: "40s · 720×1082", src: v1 },
-    { key: "v2", title: "Video 2", note: "78s · 720×1080", src: v2 },
+    // { key: "v2", title: "Video 2", note: "78s · 720×1080", src: v2 },
   ],
 
   media: {
@@ -146,6 +156,18 @@ export const config = {
   publicOrigin: "",
 };
 
+/**
+ * The clips currently in circulation — what the controller offers and what the
+ * screens preload.
+ *
+ * Deliberately NOT what `bundledVideo()` searches: a screen already playing a
+ * clip that was just withdrawn must keep resolving it, or withdrawing one would
+ * black out any panel mid-loop on it.
+ */
+export function activeVideos() {
+  return config.bundledVideos.filter((v) => v.enabled !== false);
+}
+
 /** The library entry a `local:<key>` URL — or a bare key — refers to. */
 export function bundledVideo(keyOrUrl) {
   const key = String(keyOrUrl || "")
@@ -162,5 +184,7 @@ export function bundledUrl(key) {
 export function endpoint(name, sysNo) {
   const path = config.endpoints[name];
   if (!path) throw new Error(`Unknown endpoint: ${name}`);
-  return `${config.apiBaseUrl}${path}?${config.systemParam}=${encodeURIComponent(sysNo)}`;
+  return `${config.apiBaseUrl}${path}?${
+    config.systemParam
+  }=${encodeURIComponent(sysNo)}`;
 }

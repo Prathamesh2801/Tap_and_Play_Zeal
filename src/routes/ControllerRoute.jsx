@@ -12,7 +12,7 @@ import { useSystemActions } from '../hooks/useSystemActions.js'
 import { useSysNo } from '../hooks/useSysNo.js'
 import { bundledKey, withSync } from '../lib/media.js'
 import { now, startClockSync } from '../lib/clock.js'
-import { bundledUrl, config } from '../lib/config.js'
+import { activeVideos, bundledUrl, config } from '../lib/config.js'
 
 /** The phone. Writes to data.php, mirrors what sse.php reports back. */
 export default function ControllerRoute() {
@@ -114,7 +114,7 @@ export default function ControllerRoute() {
             is not a resume; that is the play/pause control. */}
         <div className="lg:col-start-1 lg:row-start-1">
           <VideoLibrary
-            videos={config.bundledVideos}
+            videos={activeVideos()}
             currentKey={bundledKey(snapshot.url)}
             onLoad={(key) =>
               actions.play(withSync(bundledUrl(key), { anchor: now() + config.sync.restartLeadMs }))

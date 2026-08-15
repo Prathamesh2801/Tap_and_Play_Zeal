@@ -5,7 +5,7 @@
  * accuracy figure, and a drift near zero. Hidden by default — the panel is meant
  * to show nothing but video.
  */
-export function SyncBadge({ clock, drift, preload, library = [] }) {
+export function SyncBadge({ clock, drift, dropped = 0, preload, library = [] }) {
   const ms = (v) => `${v >= 0 ? '+' : ''}${Math.round(v)}ms`
 
   return (
@@ -20,6 +20,13 @@ export function SyncBadge({ clock, drift, preload, library = [] }) {
         <span className={Math.abs(drift * 1000) > 50 ? 'text-danger' : 'text-live'}>
           {ms(drift * 1000)}
         </span>
+      </div>
+      {/* Anything but 0 here means this panel cannot decode in real time. That
+          is a hardware/encode problem — drift correction deliberately backs off
+          while it is happening, so a non-zero drift beside it is expected. */}
+      <div>
+        dropped{' '}
+        <span className={dropped > 0 ? 'text-danger' : 'text-live'}>{Math.round(dropped)}/tick</span>
       </div>
       <div>preload {Math.round(preload * 100)}%</div>
       {library.map((row) => (

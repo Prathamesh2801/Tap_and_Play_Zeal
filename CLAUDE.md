@@ -157,7 +157,7 @@ local clock, which is correct anyway when every "screen" is one machine.
 | `mediaKey()` strips `t`/`p` and keys the UI | Otherwise a pause remounts the player: black frame + reload instead of a pause. `stripSync` splits on `&` rather than regex-replacing, because a global replace eats the separator and drops the following param. |
 | Pausing does **not** seek | The pause arrives up to a second late; aligning to it rewinds visibly. Only a screen that booted *while* paused positions itself (`hasPlayedRef`). |
 | `playbackRate` is only written when it must move | On WebKit a rate write can cost a frame — the exact jank being chased. `config.sync.webkit` corrects less often and less aggressively. |
-| Drift correction skips `readyState < 3` | Seeking a starved decoder every tick converts "slow" into "stuttering". |
+| Drift correction skips `readyState < 3` **and rising `droppedVideoFrames`** | Seeking a starved decoder every tick converts "slow" into "stuttering". `readyState` cannot see the case where the buffer is full but the decoder can't keep up — left unguarded that is a feedback loop: decode falls behind → drift passes `hardSeek` → seek → seek flushes the decoder → falls further behind. Dropped frames are the honest signal; while they climb, do nothing. |
 | YouTube loops via `seekTo(0)` on ENDED, never `loop=1&playlist=` | The playlist form makes YouTube draw prev/next buttons over the panel. |
 | `contract.js` is the only file that knows the server's field names | `data.php`/`sse.php` change shape → change `adaptSnapshot`/`toFormData` and nothing else. |
 | `data.php` rejects partial writes | Every write sends both `Status` and `Play`, which is why pausing re-sends the current URL. |
@@ -181,17 +181,58 @@ keyframe at exactly every second with no scene-cut variance. `currentTime` write
 can only land on a keyframe, so sparse or unevenly spaced ones mean ten panels snap
 to ten different frames after the same correction.
 
-Current library — 24fps, AAC 128k stereo kept in both:
+Current library — 24fps, AAC 128k stereo:
 
-| key | duration | resolution | size | bitrate |
-| --- | --- | --- | --- | --- |
-| `v1` | 40.4s | 720×1082 | 12.1 MB | ~2.4 Mbps |
-| `v2` | 78.3s | 720×1080 | 9.6 MB | ~1.0 Mbps |
+| key | duration | resolution | size | bitrate | state |
+| --- | --- | --- | --- | --- | --- |
+| `v1` | 40.4s | 720×1082 | 12.1 MB | ~2.4 Mbps | live |
+| `v2` | 78.3s | 720×1080 | 9.6 MB | ~1.0 Mbps | **withdrawn from the build** |
+
+### Two levels of withdrawing a clip
+
+A clip is in the build because it is **imported** — Vite emits an asset for the
+import statement, not for the `bundledVideos` list. So there are two levels, and
+they are not interchangeable:
+
+| | `enabled: false` | import commented out |
+| --- | --- | --- |
+| In the controller's list | no | no |
+| Preloaded by screens | no | no |
+| Shipped in `dist/` | **yes** | no |
+| `local:<key>` resolves | **yes** | no |
+
+`activeVideos()` (what the controller offers and the screens preload) filters on
+`enabled`; `bundledVideo()` deliberately does **not**, which is the whole point of
+the first level — a panel already mid-loop on a clip withdrawn during an event
+keeps resolving it instead of blacking out.
+
+The second level is for when the bytes themselves should not ship. `v2` is there
+now: restoring it means uncommenting **both** the import and the entry. Deploy is
+13 MB with v1 alone, 23 MB with both.
 
 **Renaming or adding a clip is one place only**: `config.bundledVideos`. `key` is
 the identity that travels over the wire and must not change casually (a screen
 mid-playback resolves its media by it); `title` and `note` are shown to people.
 Adding a third clip = one import plus one entry.
+
+### If a panel stutters
+
+Check `?debug=1` first. The badge separates the two failure modes that look
+identical from across a room:
+
+- `preload` / per-clip `cached` — if these are not complete, it is the **network**,
+  and playback should not have started from cache at all.
+- `dropped` — anything above `0/tick` means this panel **cannot decode in real
+  time**. No amount of extra compression fixes that; file size is irrelevant once
+  the clip is a blob in memory. Decode cost is driven by *resolution* and *coding
+  complexity*, not bitrate. `scripts/encode-media.sh` can add `-tune fastdecode`
+  (CAVLC instead of CABAC, simpler deblocking) which costs ~20% more bytes for a
+  materially cheaper decode — the right trade for a weak signage stick.
+
+Note that several screens on **one** machine share one GPU and one pool of
+hardware decoder sessions; past two or three streams browsers quietly fall back to
+software decode. That is a property of the test rig, not of the wall — ten
+separate panels each decode exactly one stream.
 
 Sources are **not** padded to the panel's shape. They keep their native 2:3 and
 the panel letterboxes them (see below) — baking bars into the file would spend

@@ -12,7 +12,7 @@ import { useSysNo } from '../hooks/useSysNo.js'
 import { isPlayableUrl, mediaKey } from '../lib/media.js'
 import { clockState, onClockChange, startClockSync } from '../lib/clock.js'
 import { isCached, preloadMedia } from '../lib/videoCache.js'
-import { config } from '../lib/config.js'
+import { activeVideos, config } from '../lib/config.js'
 
 /** "9:16" or a bare decimal → width/height. Anything unparseable is ignored. */
 function parseAspect(value) {
@@ -57,12 +57,12 @@ export default function ScreenRoute() {
   const pairing = params.get('pair') === '1'
 
   const [clock, setClock] = useState(clockState)
-  const [diagnostics, setDiagnostics] = useState({ drift: 0 })
+  const [diagnostics, setDiagnostics] = useState({ drift: 0, dropped: 0 })
 
   // One row per bundled video, so a wall being commissioned shows which clips a
   // given panel is already holding rather than a single blended percentage.
   const [library, setLibrary] = useState(() =>
-    config.bundledVideos.map((video) => ({
+    activeVideos().map((video) => ({
       key: video.key,
       title: video.title,
       ratio: isCached(video.src) ? 1 : 0,
@@ -99,7 +99,7 @@ export default function ScreenRoute() {
     }
 
     ;(async () => {
-      for (const video of config.bundledVideos) {
+      for (const video of activeVideos()) {
         if (cancelled) return
         try {
           await preloadMedia(video.src, ({ ratio }) => patch(video.key, { ratio }))
@@ -185,7 +185,15 @@ export default function ScreenRoute() {
         )}
       </AnimatePresence>
 
-      {debug && <SyncBadge clock={clock} drift={diagnostics.drift} preload={cached} library={library} />}
+      {debug && (
+        <SyncBadge
+          clock={clock}
+          drift={diagnostics.drift}
+          dropped={diagnostics.dropped}
+          preload={cached}
+          library={library}
+        />
+      )}
     </ScreenFrame>
   )
 }

@@ -137,6 +137,7 @@ export function SyncedVideo({
 
     let startTimer = null
     let interval = null
+    let lastDropped = null
 
     const duration = () => (Number.isFinite(el.duration) && el.duration > 0 ? el.duration : 0)
 
@@ -163,6 +164,32 @@ export function SyncedVideo({
       // it every tick turns a slow screen into a stuttering one, so while the
       // pipeline is starved, leave it alone and let it recover.
       if (el.readyState < 3) return
+
+      /**
+       * The same rule, but for the case `readyState` cannot see.
+       *
+       * A panel can report HAVE_ENOUGH_DATA and still be dropping frames — the
+       * buffer is full, the decoder just cannot keep up with it. Left alone,
+       * that becomes a feedback loop with teeth: decode falls behind → drift
+       * grows past `hardSeek` → we seek → the seek flushes the decoder → it
+       * falls further behind → we seek again. A panel that was merely slow ends
+       * up seeking every tick, which is far more visible than the drift ever was.
+       *
+       * Dropped frames are the honest signal, so while they are climbing we do
+       * nothing at all and let the decoder recover. The drift is a symptom of
+       * the starvation; a seek cannot fix it and makes the next second worse.
+       */
+      const quality = el.getVideoPlaybackQuality?.()
+      if (quality) {
+        const dropped = quality.droppedVideoFrames
+        const delta = lastDropped == null ? 0 : dropped - lastDropped
+        lastDropped = dropped
+
+        // Frames this tick should have shown, at the source's 24fps.
+        const budget = Math.max(2, 24 * (tick / 1000) * 0.15)
+        diagnosticsRef.current?.({ dropped: delta })
+        if (delta > budget) return
+      }
 
       const position = target()
       let drift = el.currentTime - position
